@@ -3,11 +3,6 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-val keystoreFile: String? by project
-val keystorePassword: String? by project
-val keyAlias: String? by project
-val keyPassword: String? by project
-
 android {
     namespace = "com.zeny.wazpay"
     compileSdk = 36
@@ -22,17 +17,6 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    signingConfigs {
-        create("release") {
-            if (keystoreFile != null && keystorePassword != null && keyAlias != null && keyPassword != null) {
-                storeFile = file(keystoreFile!!)
-                storePassword = keystorePassword!!
-                keyAlias = keyAlias!!
-                keyPassword = keyPassword!!
-            }
-        }
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -41,7 +25,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
@@ -50,6 +33,23 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+}
+
+val ksFile: String? by project
+val ksPass: String? by project
+val kAlias: String? by project
+val kPasswd: String? by project
+
+if (ksFile != null && ksPass != null && kAlias != null && kPasswd != null) {
+    android.signingConfigs.getByName("release") {
+        storeFile = file(ksFile)
+        storePassword = ksPass
+        keyAlias = kAlias
+        keyPassword = kPasswd
+    }
+    android.buildTypes.getByName("release") {
+        signingConfig = android.signingConfigs.getByName("release")
     }
 }
 
