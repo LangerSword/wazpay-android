@@ -61,7 +61,7 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Decode keystore
-        if: github.event.inputs.build_type == 'release'
+        if: (github.event.inputs.build_type == 'release') || (github.event_name == 'push')
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -75,7 +75,7 @@ jobs:
         shell: bash
 
       - name: Build debug APK
-        if: github.event.inputs.build_type == 'debug' || github.event_name == 'workflow_dispatch'
+        if: (github.event.inputs.build_type == 'debug') || (github.event_name == 'workflow_dispatch' && github.event.inputs.build_type != 'release')
         run: |
           ./gradlew assembleDebug
         env:
@@ -83,7 +83,7 @@ jobs:
           VERSION_CODE: ${{ steps.version.outputs.version_code }}
 
       - name: Build release APK
-        if: github.event.inputs.build_type == 'release'
+        if: (github.event.inputs.build_type == 'release') || (github.event_name == 'push')
         run: |
           ./gradlew assembleRelease
         env:
@@ -96,7 +96,7 @@ jobs:
 
       - name: Generate SHA-256 checksum
         run: |
-          if [ "${{ github.event.inputs.build_type }}" == "release" ]; then
+          if [ -d "app/build/outputs/apk/release" ]; then
             sha256sum app/build/outputs/apk/release/*.apk > SHA256SUMS.txt
           else
             sha256sum app/build/outputs/apk/debug/*.apk > SHA256SUMS.txt
@@ -104,7 +104,7 @@ jobs:
           cat SHA256SUMS.txt
 
       - name: Upload debug APK
-        if: github.event.inputs.build_type == 'debug' || github.event_name == 'workflow_dispatch'
+        if: (github.event.inputs.build_type == 'debug') || (github.event_name == 'workflow_dispatch' && github.event.inputs.build_type != 'release')
         uses: actions/upload-artifact@v4
         with:
           name: debug-apk
@@ -112,7 +112,7 @@ jobs:
           retention-days: 30
 
       - name: Upload release APK
-        if: github.event.inputs.build_type == 'release'
+        if: (github.event.inputs.build_type == 'release') || (github.event_name == 'push')
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
