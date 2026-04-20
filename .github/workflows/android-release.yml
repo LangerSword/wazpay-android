@@ -85,14 +85,14 @@ jobs:
       - name: Build release APK
         if: (github.event.inputs.build_type == 'release') || (github.event_name == 'push')
         run: |
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease \
+            -P keystoreFile=app/release.keystore \
+            -P keystorePassword=${{ secrets.KEYSTORE_PASSWORD }} \
+            -P keyAlias=${{ secrets.KEY_ALIAS }} \
+            -P keyPassword=${{ secrets.KEY_PASSWORD }}
         env:
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
           VERSION_CODE: ${{ steps.version.outputs.version_code }}
-          KEYSTORE_FILE: app/release.keystore
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Generate SHA-256 checksum
         run: |
