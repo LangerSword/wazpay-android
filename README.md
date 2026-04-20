@@ -49,6 +49,21 @@ The refactored modular structure provides significant technical benefits:
 
 ## Getting Started
 
+### Option 1: Download Pre-built APK (Recommended)
+
+Pre-built APK files are available on the [Releases](https://github.com/anomalyco/wazpay-android/releases) page.
+
+1.  Go to the [Releases](https://github.com/anomalyco/wazpay-android/releases) page.
+2.  Download the latest APK file.
+3.  (Optional) Verify the checksum using `sha256sum -c SHA256SUMS.txt`.
+4.  Install the APK on your Android device.
+5.  Enable "Install from unknown sources" in settings if prompted.
+6.  Enable the Accessibility Service in Android Settings.
+7.  Configure your Bank IFSC and other details in the App Settings.
+8.  Dial *99# or scan a QR code to begin an offline transaction.
+
+### Option 2: Build from Source
+
 1.  Clone the WazPay repository.
 2.  Open the project in Android Studio and build the APK.
 3.  Install the app and enable the Accessibility Service in Android Settings.

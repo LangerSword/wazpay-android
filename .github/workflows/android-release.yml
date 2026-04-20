@@ -1,0 +1,193 @@
+name: Android Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+
+env:
+  GRADLE_VERSION: 9.3.1
+  JAVA_VERSION: '17'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version_name: ${{ steps.version.outputs.version_name }}
+      version_code: ${{ steps.version.outputs.version_code }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version info
+        id: version
+        run: |
+          VERSION_NAME=$(echo '${{ github.ref_name }}' | sed 's/^v//')
+          VERSION_CODE=$(date +%Y%m%d%H%M)
+          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION_NAME (code: $VERSION_CODE)"
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/wrapper-validation-action@v2
+
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/native
+          key: ${{ runner.os }}-gradle-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', '**/*.gradle.kts*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Decode keystore
+        if: github.event.inputs.build_type == 'release'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > app/release.keystore
+          echo "::add-mask::$KEYSTORE_PASSWORD"
+          echo "::add-mask::$KEY_PASSWORD"
+          echo "Keystore decoded successfully"
+        shell: bash
+
+      - name: Build debug APK
+        if: github.event.inputs.build_type == 'debug' || github.event_name == 'workflow_dispatch'
+        run: |
+          ./gradlew assembleDebug
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          VERSION_CODE: ${{ steps.version.outputs.version_code }}
+
+      - name: Build release APK
+        if: github.event.inputs.build_type == 'release'
+        run: |
+          ./gradlew assembleRelease
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          VERSION_CODE: ${{ steps.version.outputs.version_code }}
+          KEYSTORE_FILE: app/release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Generate SHA-256 checksum
+        run: |
+          if [ "${{ github.event.inputs.build_type }}" == "release" ]; then
+            sha256sum app/build/outputs/apk/release/*.apk > SHA256SUMS.txt
+          else
+            sha256sum app/build/outputs/apk/debug/*.apk > SHA256SUMS.txt
+          fi
+          cat SHA256SUMS.txt
+
+      - name: Upload debug APK
+        if: github.event.inputs.build_type == 'debug' || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
+      - name: Upload release APK
+        if: github.event.inputs.build_type == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+      - name: Upload checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: checksums
+          path: SHA256SUMS.txt
+          retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download release APK
+        uses: actions/download-artifact@v4
+        with:
+          name: release-apk
+
+      - name: Download checksums
+        uses: actions/download-artifact@v4
+        with:
+          name: checksums
+
+      - name: Get previous tag
+        id: prev_tag
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+          echo "Previous tag: $PREV_TAG"
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          if [ -n "${{ steps.prev_tag.outputs.prev_tag }}" ]; then
+            CHANGES=$(git log ${{ steps.prev_tag.outputs.prev_tag }}..HEAD --oneline --pretty=format:"* %s (%h)" 2>/dev/null || echo "")
+          else
+            CHANGES=$(git log --oneline --pretty=format:"* %s (%h)" -10)
+          fi
+          cat << EOF > RELEASE_NOTES.md
+          # WazPay Release v${{ needs.build.outputs.version_name }}
+
+          ## Installation
+          Download the APK below and install it on your Android device.
+          Enable "Install from unknown sources" in settings if prompted.
+
+          ## Checksum Verification
+          Verify the APK integrity using:
+          \`\`\`bash
+          sha256sum -c SHA256SUMS.txt
+          \`\`\`
+
+          ## What's New
+          $CHANGES
+
+          ## Build Info
+          - Version: ${{ needs.build.outputs.version_name }}
+          - Version Code: ${{ needs.build.outputs.version_code }}
+          EOF
+          cat RELEASE_NOTES.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: WazPay v${{ needs.build.outputs.version_name }}
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
+          files: |
+            *.apk
+            SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
