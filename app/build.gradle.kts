@@ -36,10 +36,10 @@ android {
     }
 }
 
-val ksFile: String? by project
-val ksPass: String? by project
-val kAlias: String? by project
-val kPasswd: String? by project
+val ksFile: String? = project.findProperty("ksFile") as? String
+val ksPass: String? = project.findProperty("ksPass") as? String
+val kAlias: String? = project.findProperty("kAlias") as? String
+val kPasswd: String? = project.findProperty("kPasswd") as? String
 
 if (ksFile != null && ksPass != null && kAlias != null && kPasswd != null) {
     android.signingConfigs.getByName("release") {
