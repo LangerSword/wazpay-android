@@ -86,7 +86,7 @@ jobs:
         if: (github.event.inputs.build_type == 'release') || (github.event_name == 'push')
         run: |
           ./gradlew assembleRelease \
-            -P ksFile=app/release.keystore \
+            -P ksFile=../release.keystore \
             -P ksPass=${{ secrets.KEYSTORE_PASSWORD }} \
             -P kAlias=${{ secrets.KEY_ALIAS }} \
             -P kPasswd=${{ secrets.KEY_PASSWORD }}

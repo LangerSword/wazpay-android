@@ -42,9 +42,8 @@ val kAlias: String? = project.findProperty("kAlias") as? String
 val kPasswd: String? = project.findProperty("kPasswd") as? String
 
 if (ksFile != null && ksPass != null && kAlias != null && kPasswd != null) {
-    val keystorePath = File(ksFile)
     val config = android.signingConfigs.create("release") {
-        storeFile = keystorePath
+        storeFile = file(ksFile)
         storePassword = ksPass
         keyAlias = kAlias
         keyPassword = kPasswd
